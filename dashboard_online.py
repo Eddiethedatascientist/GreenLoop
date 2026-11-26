@@ -120,7 +120,6 @@ with tab2:
             df = pd.DataFrame(
                 ranking,
                 columns=[
-                    "Person ID",
                     "Name",
                     "Points",
                     "Sessions",
