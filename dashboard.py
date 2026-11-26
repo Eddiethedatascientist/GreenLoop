@@ -108,7 +108,7 @@ with tab1:
                 st.rerun()
     #Ending the state: set the stop state to turn off cam, 
     if st.session_state.is_running:
-        if st.button("Finish sessiom"):
+        if st.button("Finish session"):
             st.session_state.stop_event.set()
             vision_thread = st.session_state.vision_thread
             if vision_thread is not None and vision_thread.is_alive():
@@ -188,9 +188,7 @@ if option == "Admin":
     else:
         st.sidebar.success("Logged in as Admin🟢")
         if st.sidebar.button("Reset data🔄"):
-                cursor = conn.cursor()
-                cursor.execute("DELETE FROM leaderboard")
-                conn.commit()
+                reset_database()
                 st.success("Leaderboard has been reset!")
                 #Rerun the page to update the leaderboard
                 st.rerun()
@@ -204,31 +202,22 @@ if option == "Admin":
         if st.sidebar.button("Edit current database"):
             st.session_state.edit_mode = True
         if st.session_state.edit_mode:
-            cursor = conn.cursor()
-            cursor.execute("SELECT id, name, point FROM leaderboard")
-            #fetchall: take all info from the database
-            rows = cursor.fetchall()
+            personal_data = get_all_participants()
             user_data = []
-            print(rows)
-            for row in rows:
-                user_id = row[0]
-                user_name = row[1]
-                user_point = row[2]
-                user_data.append(f"[ID: {user_id} - {user_name} - {user_point} points]")
+            for item in personal_data:
+                pid = item[0]
+                name = item[1]
+                points = item[2]
+                user_data.append(f"[ID: {pid} - {name} - {points} points]")
             if user_data:
-                selected_choice = st.selectbox("Choose who you want to delete: ", user_data)
-                #Put into a button or else they will run without instructions
-                if st.button("Confirm Delete"):
-                    target_id = int(selected_choice.split('[ID: ')[1].split(" - ")[0])
-                    print(target_id)
-                    ex_conn = sqlite3.connect("recycling.db", check_same_thread=False)
-                    ex_cursor = ex_conn.cursor()
-                    ex_cursor.execute("DELETE FROM leaderboard WHERE id = ?", (target_id,))
-                    ex_conn.commit()
-                    st.success(f"Deleted playerid {target_id} from the leaderboard")
+                choices = st.selectbox("Choose who you want to delete: ", user_data)
+                if st.button("Confirm delete"):
+                    target_id = int(choices.split('[ID: ')[1].split(" - ")[0])
+                    delete_participant(target_id)
+                    st.success(f"Participant ID {target_id} has been deleted")
+                    st.rerun()
             else:
                 st.info("Leaderboard is currently empty!")
-        
 #Render tab2 
 with tab2:
     st.header("🔬 Model & Science Metrics")
@@ -567,5 +556,184 @@ with tab3:
                 df = pd.DataFrame(records, columns=["Time start", "Time end", "Material", "Quantity"])
                 st.dataframe(df)
     with s3:
-        st.header("🌱ESG & Impact")
-    
+        st.header("🌱Environmental Impact Assessment")
+        st.caption("Estimated environmental impact based on GreenLoop pilot data")
+        st.warning("PILOT ESTIMATES | Figures are preliminary estimates, "
+                   "not verified environmental measurements."
+        )
+        st.markdown("---")
+        st.subheader("01. Environmental impact through numbers")
+        waste_summary = get_waste_decomposition()
+        plastic_weight = 0.03
+        metal_weight = 0.04
+        paper_weight = 0.02
+        other_weight = 0.015
+        plastic_factor = 1.06
+        paper_factor = 3.6
+        metal_factor = 5.5
+        other_factor = 1
+        esg_summary = {}
+        total_weight_material = 0
+        for item in waste_summary:
+            name = item[0]
+            emission = 0
+            quantity = item[1]
+            if name == "plastic":
+                emission = plastic_weight * quantity * plastic_factor
+                esg_summary["plastic"] = emission
+                total_weight_material += plastic_weight * quantity
+            elif name == "metal":
+                emission = metal_weight * quantity * metal_factor
+                esg_summary["metal"] = emission
+                total_weight_material += metal_weight * quantity
+            elif name == "paper":
+                emission = paper_weight * quantity * paper_factor
+                esg_summary["paper"] = emission
+                total_weight_material += paper_weight * quantity
+            elif name == "other":
+                emission = other_weight * quantity * other_factor
+                esg_summary["other"] = emission
+                total_weight_material += other_weight * quantity
+        total_emission = 0
+        for item in esg_summary.values():
+            total_emission += item
+        count_total = 0
+        for item in waste_summary:
+            count_total += item[1]
+        average_weight = round(total_weight_material / count_total, 3)
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            with st.container(border=True):
+                st.metric(label="Potential CO2e avoided", value=total_emission, help="Estimated using pilot assumptions")
+        with col2:
+            with st.container(border=True):
+                st.metric(label="Average Kg per item", value=average_weight, help="Average weight per a recycled item")
+        with col3:
+            with st.container(border=True):
+                st.metric(label="Total item sorted", value=count_total, help="Actual recorded count")
+        with col4:
+            with st.container(border=True):
+                st.metric(label="Material categories", value=len(waste_summary), help="AI classification categories")
+                
+        st.markdown("---")
+        st.subheader("02. Environmental impact by material")
+        df_impact = pd.DataFrame(
+            list(esg_summary.items()),
+            columns=["Material", "Potential CO2e (kg)"]
+        )
+        fig = px.bar(
+            df_impact,
+            x="Material",
+            y="Potential CO2e (kg)",
+            color = "Material",
+            title = "Estimated CO2e avoided by material"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        st.markdown("---")
+        st.subheader("03. Environmental changes over time")
+        daily_data, weekly_data, monthly_data = get_activity_per_material()
+        daily_esg = []
+        weekly_esg = []
+        monthly_esg = []
+        for item in daily_data:
+            time = item[0]
+            waste = item[1]
+            quantity = item[2]
+            if waste == "plastic":
+                co2 = quantity * plastic_weight * plastic_factor
+                data = (time, waste, co2)
+                daily_esg.append(data)
+            elif waste == "metal":
+                co2 = quantity * metal_weight * metal_factor
+                data = (time, waste, co2)
+                daily_esg.append(data)
+            elif waste == "paper":
+                co2 = quantity * paper_weight * paper_factor
+                data = (time, waste, co2)
+                daily_esg.append(data)
+            elif waste == "other":
+                co2 = quantity * other_weight * other_factor
+                data = (time, waste, co2)
+                daily_esg.append(data)
+        
+        for item in weekly_data:
+            time = item[0]
+            waste = item[1]
+            quantity = item[2]
+            if waste == "plastic":
+                co2 = quantity * plastic_weight * plastic_factor
+                data = (time, waste, co2)
+                weekly_esg.append(data)
+            elif waste == "metal":
+                co2 = quantity * metal_weight * metal_factor
+                data = (time, waste, co2)
+                weekly_esg.append(data)
+            elif waste == "paper":
+                co2 = quantity * paper_weight * paper_factor
+                data = (time, waste, co2)
+                weekly_esg.append(data)
+            elif waste == "other":
+                co2 = quantity * other_weight * other_factor
+                data = (time, waste, co2)
+                weekly_esg.append(data)
+        
+        for item in monthly_data:
+            time = item[0]
+            waste = item[1]
+            quantity = item[2]
+            if waste == "plastic":
+                co2 = quantity * plastic_weight * plastic_factor
+                data = (time, waste, co2)
+                monthly_esg.append(data)
+            elif waste == "metal":
+                co2 = quantity * metal_weight * metal_factor
+                data = (time, waste, co2)
+                monthly_esg.append(data)
+            elif waste == "paper":
+                co2 = quantity * paper_weight * paper_factor
+                data = (time, waste, co2)
+                monthly_esg.append(data)
+            elif waste == "other":
+                co2 = quantity * other_weight * other_factor
+                data = (time, waste, co2)
+                monthly_esg.append(data)
+        tab1, tab2, tab3 = st.tabs(
+            ["Daily",
+            "Weekly",
+            "Monthly"]
+        )
+        with tab1:
+            df_daily = pd.DataFrame(daily_esg, columns=["Date", "Waste", "CO2"])
+            fig = px.line(
+                df_daily,
+                x="Date",
+                y="CO2",
+                color="Waste",
+                markers=True,
+                title="Estimated CO2 avoided daily per material"
+            )
+            st.plotly_chart(fig)
+        with tab2:
+            df_weekly = pd.DataFrame(weekly_esg, columns=["Date", "Waste", "CO2"])
+            fig = px.line(
+                df_weekly,
+                x="Date",
+                y="CO2",
+                color="Waste",
+                markers=True,
+                title="Estimated CO2 avoided weekly per material"
+            )
+            st.plotly_chart(fig)
+        with tab3:
+            df_monthly = pd.DataFrame(monthly_esg, columns=["Date", "Waste", "CO2"])
+            fig = px.line(
+                df_monthly,
+                x="Date",
+                y="CO2",
+                color="Waste",
+                markers=True,
+                title="Estimated CO2 avoided monthly per material"
+            )
+            st.plotly_chart(fig)
+        
+        
