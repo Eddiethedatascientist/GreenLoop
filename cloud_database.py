@@ -20,6 +20,20 @@ def fetch_all(query, params=None):
             cursor.execute(query, params or ())
             return cursor.fetchall()
 
+def get_person_summary(person_id):
+    """Retrieve total points, distinct sorting sessions, and total items for one person."""
+    rows = fetch_all("""
+        SELECT
+            COALESCE(p.total_point, 0),
+            COUNT(DISTINCT se.event_id),
+            COALESCE(SUM(ei.quantity), 0)
+        FROM person p
+        LEFT JOIN sorting_event se ON p.person_id = se.person_id
+        LEFT JOIN event_item ei ON se.event_id = ei.event_id
+        WHERE p.person_id = %s
+        GROUP BY p.person_id, p.total_point;
+    """, (person_id,))
+    return rows[0] if rows else (0, 0, 0)
 
 def ranking_database():
     """Retrieve participants ranked by their total points."""
