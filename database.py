@@ -305,6 +305,41 @@ def get_activity_data():
     conn.close()
     return data_daily, data_weekly, data_monthly
 
+def get_activity_per_material():
+    """
+    Get the trends of sorting per each material 
+    from the database
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT DATE(e.time), w.waste_name, SUM(e.quantity)
+        FROM event_item e
+        JOIN waste_type w ON e.waste_id = w.waste_id
+        GROUP BY DATE(e.time), w.waste_name
+        ORDER BY DATE(e.time);
+    """)
+    daily = cursor.fetchall()
+    cursor.execute("""
+        SELECT strftime('%Y-%W', e.time), w.waste_name, SUM(e.quantity)
+        FROM event_item e
+        JOIN waste_type w ON e.waste_id = w.waste_id
+        GROUP BY strftime('%Y-%W', e.time), w.waste_name
+        ORDER BY strftime('%Y-%W', e.time);
+    """)
+    weekly = cursor.fetchall()
+    cursor.execute("""
+        SELECT strftime('%Y-%m', e.time), w.waste_name, SUM(e.quantity)
+        FROM event_item e
+        JOIN waste_type w ON e.waste_id = w.waste_id
+        GROUP BY strftime('%Y-%m', e.time), w.waste_name
+        ORDER BY strftime('%Y-%m', e.time);
+    """)
+    monthly = cursor.fetchall()
+    conn.close()
+    return daily, weekly, monthly
+    
+    
 def get_best_material():
     """
     Return the most sorted material
@@ -441,3 +476,39 @@ def get_personal_histories(person_id):
     data = cursor.fetchall()
     conn.close()
     return data
+
+def reset_database():
+    """
+    Reset everything in the database
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM event_item")
+    cursor.execute("DELETE FROM sorting_event")
+    cursor.execute("DELETE FROM Person")
+    conn.commit()
+    conn.close()
+
+def delete_participant(person_id):
+    """
+    Delete a specific participant from the 
+    database based on their person_id
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""DELETE FROM event_item WHERE event_id IN (SELECT event_id FROM sorting_event WHERE person_id = ?)""", (person_id,))
+    cursor.execute("DELETE FROM sorting_event WHERE person_id = ?", (person_id,))
+    cursor.execute("DELETE FROM Person WHERE person_id = ?", (person_id,))
+    conn.commit()
+    conn.close()
+
+def get_all_participants():
+    """
+    Get person_id, name, points
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT person_id, name, total_point FROM Person")
+    data_list = cursor.fetchall()
+    conn.close()
+    return data_list
