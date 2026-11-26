@@ -107,145 +107,177 @@ with tab2:
 
     with s1:
 
+        
         @st.fragment(run_every="10s")
         def overview_section():
+    
             ranking = ranking_database()
             waste_data = get_waste_decomposition()
-            best_material = get_best_material()
-
-            if not ranking:
-                st.info("No sorting records available yet.")
-                return
-
-            df = pd.DataFrame(
-                ranking,
-                columns=[
-                    "Name",
-                    "Points",
-                    "Sessions",
-                    "Items"
-                ]
-            )
-
-            total_people = len(df)
-            total_points = int(df["Points"].sum())
-            total_items = int(df["Items"].sum())
-
+    
+            # -----------------------------------------
+            # PARTICIPANT & ACTIVITY SUMMARY
+            # -----------------------------------------
+    
+            if ranking:
+                df = pd.DataFrame(
+                    ranking,
+                    columns=[
+                        "Name",
+                        "Points",
+                        "Sessions",
+                        "Items"
+                    ]
+                )
+    
+                total_people = len(df)
+                total_points = int(df["Points"].sum())
+                total_items = int(df["Items"].sum())
+    
+            else:
+                total_people = 0
+                total_points = 0
+                total_items = 0
+    
             col1, col2, col3 = st.columns(3)
-
+    
             col1.metric("Participants", total_people)
             col2.metric("Green Points", total_points)
             col3.metric("Items Sorted", total_items)
-
+    
             st.divider()
-
+    
+            # -----------------------------------------
+            # WASTE COMPOSITION
+            # -----------------------------------------
+    
             col1, col2 = st.columns(2)
-
+    
+            waste_df = pd.DataFrame(
+                waste_data,
+                columns=["Material", "Quantity"]
+            ) if waste_data else pd.DataFrame(
+                columns=["Material", "Quantity"]
+            )
+    
             with col1:
                 st.subheader("Waste Composition")
-
-                if waste_data:
-                    waste_df = pd.DataFrame(
-                        waste_data,
-                        columns=["Material", "Quantity"]
-                    )
-
+    
+                if not waste_df.empty:
                     fig = px.pie(
                         waste_df,
                         names="Material",
                         values="Quantity",
                         hole=0.45
                     )
-
+    
                     st.plotly_chart(
                         fig,
-                        use_container_width=True
+                        width="stretch"
                     )
-
+                else:
+                    st.info("No waste data available.")
+    
             with col2:
                 st.subheader("Most Sorted Material")
-
-                if best_material:
+    
+                if not waste_df.empty:
+                    best_row = waste_df.loc[
+                        waste_df["Quantity"].idxmax()
+                    ]
+    
                     st.metric(
-                        best_material[0],
-                        int(best_material[1])
+                        str(best_row["Material"]),
+                        int(best_row["Quantity"])
                     )
                 else:
                     st.info("No material data available.")
-
+    
             st.divider()
-
+    
+            # -----------------------------------------
+            # DAILY ACTIVITY
+            # -----------------------------------------
+    
             st.subheader("Daily Sorting Activity")
-
+    
             daily_data = get_activity_data("daily")
-
+    
             if daily_data:
                 daily_df = pd.DataFrame(
                     daily_data,
                     columns=["Date", "Quantity"]
                 )
-
+    
                 fig = px.bar(
                     daily_df,
                     x="Date",
                     y="Quantity",
                     title="Items Sorted Per Day"
                 )
-
-                st.plotly_chart(
-                    fig,
-                    use_container_width=True
-                )
-
+    
+                st.plotly_chart(fig, width="stretch")
+            else:
+                st.info("No daily activity available.")
+    
+            # -----------------------------------------
+            # WEEKLY ACTIVITY
+            # -----------------------------------------
+    
             st.subheader("Weekly Sorting Activity")
-
+    
             weekly_data = get_activity_data("weekly")
-
+    
             if weekly_data:
                 weekly_df = pd.DataFrame(
                     weekly_data,
                     columns=["Week", "Quantity"]
                 )
-
+    
                 fig = px.line(
                     weekly_df,
                     x="Week",
                     y="Quantity",
                     markers=True
                 )
-
-                st.plotly_chart(
-                    fig,
-                    use_container_width=True
-                )
-
+    
+                st.plotly_chart(fig, width="stretch")
+            else:
+                st.info("No weekly activity available.")
+    
+            # -----------------------------------------
+            # MONTHLY ACTIVITY
+            # -----------------------------------------
+    
             st.subheader("Monthly Sorting Activity")
-
+    
             monthly_data = get_activity_data("monthly")
-
+    
             if monthly_data:
                 monthly_df = pd.DataFrame(
                     monthly_data,
                     columns=["Month", "Quantity"]
                 )
-
+    
                 fig = px.bar(
                     monthly_df,
                     x="Month",
                     y="Quantity"
                 )
-
-                st.plotly_chart(
-                    fig,
-                    use_container_width=True
-                )
-
+    
+                st.plotly_chart(fig, width="stretch")
+            else:
+                st.info("No monthly activity available.")
+    
             st.divider()
-
+    
+            # -----------------------------------------
+            # RECENT ACTIVITY
+            # -----------------------------------------
+    
             st.subheader("Recent Sorting Activity")
-
+    
             recent_data = get_recent_sorting()
-
+    
             if recent_data:
                 recent_df = pd.DataFrame(
                     recent_data,
@@ -256,13 +288,17 @@ with tab2:
                         "Time"
                     ]
                 )
-
+    
                 st.dataframe(
                     recent_df,
-                    use_container_width=True
+                    width="stretch",
+                    hide_index=True
                 )
-
+            else:
+                st.info("No recent sorting activity.")
+    
         overview_section()
+
 
 
     with s2:
