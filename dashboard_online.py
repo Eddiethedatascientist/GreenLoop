@@ -127,12 +127,12 @@ with tab2:
             total_people = len(ranking_df)
 
             total_points = (
-                int(ranking_df["Points"].sum())
+                int(ranking_df["Points"].fillna(0).sum())
                 if not ranking_df.empty else 0
             )
 
             total_items = (
-                int(ranking_df["Items"].sum())
+                int(ranking_df["Items"].fillna(0).sum())
                 if not ranking_df.empty else 0
             )
 
@@ -148,6 +148,14 @@ with tab2:
                 waste_data,
                 columns=["Material", "Quantity"]
             )
+
+            if not waste_df.empty:
+                waste_df["Quantity"] = (
+                    pd.to_numeric(
+                        waste_df["Quantity"],
+                        errors="coerce"
+                    ).fillna(0)
+                )
 
             col1, col2 = st.columns(2)
 
@@ -321,17 +329,17 @@ with tab2:
 
             col1.metric(
                 "Green Points",
-                int(points)
+                int(points or 0)
             )
 
             col2.metric(
                 "Sorting Sessions",
-                int(sessions)
+                int(sessions or 0)
             )
 
             col3.metric(
                 "Items Sorted",
-                int(items)
+                int(items or 0)
             )
 
             st.divider()
